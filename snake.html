@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Snake Game</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐍</text></svg>" type="image/x-icon">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -134,11 +135,17 @@
         </div>
     </div>
     
-    <!-- Theme Toggle Button -->
-    <button id="theme-toggle" class="fixed top-4 right-4 z-30 p-2 rounded-full text-2xl transition-transform transform hover:scale-110">
-        <span id="sun-icon">☀️</span>
-        <span id="moon-icon" class="hidden">🌙</span>
-    </button>
+    <!-- Top Right Controls -->
+    <div class="fixed top-4 right-4 z-30 flex items-center space-x-2">
+        <button id="mute-btn" class="p-2 text-2xl transition-transform transform hover:scale-110">
+            <span id="unmuted-icon">🔊</span>
+            <span id="muted-icon" class="hidden">🔇</span>
+        </button>
+        <button id="theme-toggle" class="p-2 rounded-full text-2xl transition-transform transform hover:scale-110">
+            <span id="sun-icon">☀️</span>
+            <span id="moon-icon" class="hidden">🌙</span>
+        </button>
+    </div>
 
     <!-- Back to Fun-Zone Button -->
     <a href="https://suhasmartha.github.io/#/games" class="fixed bottom-4 right-4 z-30 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105">
@@ -163,6 +170,9 @@
             const themeToggle = document.getElementById('theme-toggle');
             const sunIcon = document.getElementById('sun-icon');
             const moonIcon = document.getElementById('moon-icon');
+            const muteBtn = document.getElementById('mute-btn');
+            const unmutedIcon = document.getElementById('unmuted-icon');
+            const mutedIcon = document.getElementById('muted-icon');
             const difficultyButtons = document.querySelectorAll('.difficulty-btn');
             const htmlEl = document.documentElement;
 
@@ -172,6 +182,7 @@
             let snake, food, score, direction, changingDirection, gameLoop;
             let isGameOver = false;
             let gameStarted = false;
+            let isMuted = false;
 
             const difficultySettings = {
                 easy:   { gridSize: 10, gameSpeed: 250, snakeLength: 3 },
@@ -301,7 +312,7 @@
                 if (head.x === food.x && head.y === food.y) {
                     score += 10;
                     scoreEl.textContent = score;
-                    if(soundsReady) eatSound.triggerAttackRelease('C5', '8n');
+                    if(!isMuted && soundsReady) eatSound.triggerAttackRelease('C5', '8n');
                     generateFood();
                 } else {
                     snake.pop();
@@ -347,7 +358,7 @@
             }
 
             function showGameOver() {
-                if(soundsReady) gameOverSound.triggerAttackRelease('C3', '4n');
+                if(!isMuted && soundsReady) gameOverSound.triggerAttackRelease('C3', '4n');
                 finalScoreEl.textContent = score;
                 gameOverModal.classList.remove('hidden');
                 gameOverModal.classList.add('flex');
@@ -375,6 +386,16 @@
                     sunIcon.classList.add('hidden'); moonIcon.classList.remove('hidden');
                 } else {
                     sunIcon.classList.remove('hidden'); moonIcon.classList.add('hidden');
+                }
+            }
+
+            function updateMuteIcons() {
+                if (isMuted) {
+                    unmutedIcon.classList.add('hidden');
+                    mutedIcon.classList.remove('hidden');
+                } else {
+                    unmutedIcon.classList.remove('hidden');
+                    mutedIcon.classList.add('hidden');
                 }
             }
             
@@ -423,7 +444,7 @@
             
             enterButton.addEventListener('click', () => {
                  startAudio();
-                 if(soundsReady) clickSound.triggerAttackRelease('C4', '8n');
+                 if(!isMuted && soundsReady) clickSound.triggerAttackRelease('C4', '8n');
                  if (!gameStarted) {
                     showDifficultyScreen();
                 }
@@ -431,19 +452,19 @@
 
             difficultyButtons.forEach(button => {
                 button.addEventListener('click', () => {
-                    if(soundsReady) clickSound.triggerAttackRelease('C4', '8n');
+                    if(!isMuted && soundsReady) clickSound.triggerAttackRelease('C4', '8n');
                     setDifficultyAndStart(button.dataset.difficulty);
                 });
             });
 
             playAgainButton.addEventListener('click', () => {
-                if(soundsReady) clickSound.triggerAttackRelease('C4', '8n');
+                if(!isMuted && soundsReady) clickSound.triggerAttackRelease('C4', '8n');
                 if (gameLoop) clearTimeout(gameLoop);
                 init();
             });
 
             changeDifficultyButton.addEventListener('click', () => {
-                if(soundsReady) clickSound.triggerAttackRelease('C4', '8n');
+                if(!isMuted && soundsReady) clickSound.triggerAttackRelease('C4', '8n');
                 gameStarted = false;
                 if (gameLoop) clearTimeout(gameLoop);
                 gameOverModal.classList.add('hidden');
@@ -453,7 +474,7 @@
 
             themeToggle.addEventListener('click', () => {
                 startAudio();
-                if(soundsReady) clickSound.triggerAttackRelease('E5', '8n');
+                if(!isMuted && soundsReady) clickSound.triggerAttackRelease('E5', '8n');
                 htmlEl.classList.toggle('dark');
                 updateThemeIcons();
                 if (gameStarted && !isGameOver && snake && food) {
@@ -461,12 +482,21 @@
                 }
             });
             
+            muteBtn.addEventListener('click', () => {
+                isMuted = !isMuted;
+                startAudio();
+                if (!isMuted && soundsReady) {
+                    clickSound.triggerAttackRelease('D4', '8n');
+                }
+                updateMuteIcons();
+            });
+
             window.addEventListener('resize', handleResize);
 
             // --- Initial Setup ---
-            updateThemeIcons(); // Set initial icon
+            updateThemeIcons();
+            updateMuteIcons();
         });
     </script>
 </body>
 </html>
-
