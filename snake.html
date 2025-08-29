@@ -2,10 +2,10 @@
 <html lang="en" class="dark"> <!-- Start in dark mode by default -->
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Snake Game</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐍</text></svg>" type="image/x-icon">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&display=swap" rel="stylesheet">
@@ -37,6 +37,7 @@
         html, body {
             height: 100%;
             overflow: hidden; /* Prevent scrollbars */
+            -webkit-tap-highlight-color: transparent; /* Disable tap highlight on mobile */
         }
         body {
             font-family: var(--font-fira);
@@ -44,6 +45,8 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            position: fixed; /* Fix body to prevent pull-to-refresh */
+            width: 100%;
         }
 
         /* General UI panel styles */
@@ -84,7 +87,7 @@
         <div class="mt-8 p-6 rounded-lg">
             <h2 class="text-2xl font-bold mb-4">Rules:</h2>
             <ul class="list-none space-y-2 text-lg">
-                <li>Use <span class="font-bold text-green-400">Arrow Keys</span> to move the snake.</li>
+                <li>Use <span class="font-bold text-green-400">Arrow Keys</span> or <span class="font-bold text-green-400">Swipe</span> to move the snake.</li>
                 <li>Eat the <span class="font-bold text-purple-400">violet blocks</span> to grow.</li>
                 <li>Don't run into the walls or your own tail!</li>
             </ul>
@@ -114,7 +117,7 @@
 
         <!-- Game Canvas -->
         <div class="relative" id="canvas-wrapper">
-            <canvas id="game-canvas" class="game-canvas rounded-lg border-4 shadow-2xl"></canvas>
+            <canvas id="game-canvas" class="game-canvas rounded-lg border-4 shadow-2xl" touch-action="none"></canvas>
             <!-- Game Over Modal -->
             <div id="game-over-modal" class="hidden absolute inset-0 bg-black bg-opacity-70 flex-col items-center justify-center rounded-lg">
                 <h2 id="game-over-text" class="text-4xl font-bold text-white mb-2">Game Over</h2>
@@ -176,6 +179,20 @@
                 hard:   { gridSize: 30, gameSpeed: 60,  snakeLength: 7 }
             };
 
+            // --- Sound Effects (Tone.js) ---
+            let soundsReady = false;
+            const eatSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.2, release: 0.2 } }).toDestination();
+            const gameOverSound = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.5, sustain: 0.1, release: 0.5 } }).toDestination();
+            const clickSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.05, release: 0.1 } }).toDestination();
+            
+            // Function to start audio context on user interaction
+            const startAudio = async () => {
+                if (Tone.context.state !== 'running') {
+                    await Tone.start();
+                }
+                soundsReady = true;
+            };
+
             // --- Color Management ---
             const colors = {
                 light: { snake: '--color-light-snake', food: '--color-light-food', grid: '--color-light-grid' },
@@ -216,7 +233,6 @@
                 score = 0;
                 scoreEl.textContent = score;
                 
-                // Create snake based on difficulty
                 snake = [];
                 const startX = Math.floor(gridSize / 2);
                 const startY = Math.floor(gridSize / 2);
@@ -246,14 +262,14 @@
                     checkCollision();
                     drawSnake();
                     main();
-                }, gameSpeed); // Use variable game speed
+                }, gameSpeed);
             }
 
             // --- Drawing ---
             function drawGrid() {
                 const currentColors = getCurrentColors();
                 ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue(currentColors.grid).trim();
-                ctx.lineWidth = 2; // Increased line width for a bigger grid appearance
+                ctx.lineWidth = 2;
                 for (let i = 1; i < gridSize; i++) {
                     ctx.beginPath(); ctx.moveTo(i * tileSize, 0); ctx.lineTo(i * tileSize, canvas.height); ctx.stroke();
                     ctx.beginPath(); ctx.moveTo(0, i * tileSize); ctx.lineTo(canvas.width, i * tileSize); ctx.stroke();
@@ -285,6 +301,7 @@
                 if (head.x === food.x && head.y === food.y) {
                     score += 10;
                     scoreEl.textContent = score;
+                    if(soundsReady) eatSound.triggerAttackRelease('C5', '8n');
                     generateFood();
                 } else {
                     snake.pop();
@@ -306,7 +323,7 @@
             function checkCollision() {
                 const head = snake[0];
                 if (head.x < 0 || head.x >= gridSize || head.y < 0 || head.y >= gridSize) isGameOver = true;
-                for (let i = 1; i < snake.length; i++) { // Check from index 1 to avoid head checking itself
+                for (let i = 1; i < snake.length; i++) {
                     if (head.x === snake[i].x && head.y === snake[i].y) isGameOver = true;
                 }
             }
@@ -330,13 +347,14 @@
             }
 
             function showGameOver() {
+                if(soundsReady) gameOverSound.triggerAttackRelease('C3', '4n');
                 finalScoreEl.textContent = score;
                 gameOverModal.classList.remove('hidden');
                 gameOverModal.classList.add('flex');
             }
             
             function handleResize() {
-                const margin = 0.1; // 10% margin
+                const margin = 0.1;
                 const availableWidth = window.innerWidth * (1 - margin);
                 const availableHeight = window.innerHeight * (1 - margin);
                 canvasSize = Math.min(availableWidth, availableHeight);
@@ -359,10 +377,44 @@
                     sunIcon.classList.remove('hidden'); moonIcon.classList.add('hidden');
                 }
             }
+            
+            // --- Touch Controls ---
+            let touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
+            
+            function handleSwipe() {
+                const diffX = touchEndX - touchStartX;
+                const diffY = touchEndY - touchStartY;
+                const threshold = 30; // Min swipe distance
+
+                if(Math.abs(diffX) < threshold && Math.abs(diffY) < threshold) return;
+
+                if (Math.abs(diffX) > Math.abs(diffY)) {
+                    changeDirection({ key: diffX > 0 ? 'ArrowRight' : 'ArrowLeft' });
+                } else {
+                    changeDirection({ key: diffY > 0 ? 'ArrowDown' : 'ArrowUp' });
+                }
+            }
+
+            canvas.addEventListener('touchstart', e => {
+                e.preventDefault();
+                touchStartX = e.changedTouches[0].screenX;
+                touchStartY = e.changedTouches[0].screenY;
+            }, { passive: false });
+
+            canvas.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+
+            canvas.addEventListener('touchend', e => {
+                e.preventDefault();
+                touchEndX = e.changedTouches[0].screenX;
+                touchEndY = e.changedTouches[0].screenY;
+                handleSwipe();
+            }, { passive: false });
+
 
             // --- Event Listeners ---
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !gameStarted) {
+                    startAudio();
                     showDifficultyScreen();
                 } else if (gameStarted) {
                     changeDirection(e);
@@ -370,6 +422,8 @@
             });
             
             enterButton.addEventListener('click', () => {
+                 startAudio();
+                 if(soundsReady) clickSound.triggerAttackRelease('C4', '8n');
                  if (!gameStarted) {
                     showDifficultyScreen();
                 }
@@ -377,16 +431,19 @@
 
             difficultyButtons.forEach(button => {
                 button.addEventListener('click', () => {
+                    if(soundsReady) clickSound.triggerAttackRelease('C4', '8n');
                     setDifficultyAndStart(button.dataset.difficulty);
                 });
             });
 
             playAgainButton.addEventListener('click', () => {
+                if(soundsReady) clickSound.triggerAttackRelease('C4', '8n');
                 if (gameLoop) clearTimeout(gameLoop);
                 init();
             });
 
             changeDifficultyButton.addEventListener('click', () => {
+                if(soundsReady) clickSound.triggerAttackRelease('C4', '8n');
                 gameStarted = false;
                 if (gameLoop) clearTimeout(gameLoop);
                 gameOverModal.classList.add('hidden');
@@ -395,6 +452,8 @@
             });
 
             themeToggle.addEventListener('click', () => {
+                startAudio();
+                if(soundsReady) clickSound.triggerAttackRelease('E5', '8n');
                 htmlEl.classList.toggle('dark');
                 updateThemeIcons();
                 if (gameStarted && !isGameOver && snake && food) {
@@ -410,5 +469,4 @@
     </script>
 </body>
 </html>
-
 
